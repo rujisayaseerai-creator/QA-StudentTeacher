@@ -207,7 +207,6 @@ with tab_student:
             if st.button("➕ Add question", use_container_width=True):
                 st.session_state.current_questions.append("")
                 st.session_state.answers.append("")
-                st.session_state.q_index = len(st.session_state.current_questions)-1
                 st.session_state.show_preview = False
         with c4:
             # Remove current question (if more than 1 left)
