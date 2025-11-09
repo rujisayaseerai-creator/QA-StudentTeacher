@@ -134,6 +134,7 @@ st.title("📚 Simple Student/Teacher Q&A Checker")
 
 tab_student, tab_teacher = st.tabs(["👩‍🎓 Student", "👨‍🏫 Teacher"])
 
+
 # ---------------- Student ----------------
 with tab_student:
     st.subheader("Start")
@@ -186,6 +187,11 @@ with tab_student:
                                                        value=st.session_state.answers[q_idx],
                                                        height=140, key=key_a)
 
+        # Validation for current step
+        current_q_filled = questions[q_idx].strip() != ""
+        current_a_filled = st.session_state.answers[q_idx].strip() != ""
+        allow_next = current_q_filled and current_a_filled
+
         # Controls row
         c1, c2, c3, c4 = st.columns([1,1,1,1])
         with c1:
@@ -193,12 +199,11 @@ with tab_student:
                 st.session_state.q_index = max(0, q_idx-1)
                 st.session_state.show_preview = False
         with c2:
-            if st.button("➡️ Next", use_container_width=True):
-                # move forward if possible; if at last, stay (user can add new)
+            if st.button("➡️ Next", use_container_width=True, disabled=(not allow_next) or (q_idx>=total-1)):
                 st.session_state.q_index = min(len(st.session_state.current_questions)-1, q_idx+1)
                 st.session_state.show_preview = False
         with c3:
-            # Append a brand-new question at the end and jump to it
+            # Append a brand-new question at the end and jump to it (allowed anytime)
             if st.button("➕ Add question", use_container_width=True):
                 st.session_state.current_questions.append("")
                 st.session_state.answers.append("")
@@ -212,9 +217,15 @@ with tab_student:
                 st.session_state.q_index = max(0, min(q_idx, len(st.session_state.current_questions)-1))
                 st.session_state.show_preview = False
 
-        # Preview & submit
-        if st.button("👁️ Preview", use_container_width=True):
+        # Check if all filled for preview
+        all_filled = all(q.strip() != "" for q in st.session_state.current_questions) and \
+                     all(a.strip() != "" for a in st.session_state.answers[:len(st.session_state.current_questions)])
+
+        # Preview & submit buttons
+        if st.button("👁️ Preview", use_container_width=True, disabled=not all_filled):
             st.session_state.show_preview = True
+        if not all_filled:
+            st.info("กรุณากรอก 'คำถาม' และ 'คำตอบ' ให้ครบทุกข้อก่อนกด Preview/Submit")
 
         if st.session_state.get("show_preview"):
             st.subheader("Preview & Submit")
@@ -228,8 +239,9 @@ with tab_student:
             st.dataframe(df_prev, use_container_width=True, hide_index=True)
             colp1, colp2 = st.columns([2,1])
             with colp2:
-                if st.button("🟦 SUBMIT", use_container_width=True):
-                    qa = [(i+1, questions[i].strip(), st.session_state.answers[i]) for i in range(total)]
+                # Safety: still verify before saving
+                if st.button("🟦 SUBMIT", use_container_width=True, disabled=not all_filled):
+                    qa = [(i+1, questions[i].strip(), st.session_state.answers[i].strip()) for i in range(total)]
                     save_answers(student_id.strip(), date_week.strip(), qa)
                     st.success("Your answers have been submitted successfully!")
                     # reset for new submission
@@ -237,7 +249,6 @@ with tab_student:
                     st.session_state.q_index = 0
                     st.session_state.answers = [""] * len(DEFAULT_QUESTIONS)
                     st.session_state.show_preview = False
-
 # ---------------- Teacher ----------------
 with tab_teacher:
     st.subheader("Manage Questions & Check Answers")
