@@ -150,8 +150,8 @@ with tab_student:
         if not student_id.strip():
             st.warning("Please enter Student ID.")
         else:
-            st.session_state.current_questions = load_questions(date_week.strip())
-            st.session_state.answers = [""] * len(st.session_state.current_questions)
+            st.session_state.current_questions = [""]  # start with one blank question
+            st.session_state.answers = [""]
             st.session_state.q_index = 0
             st.session_state.started = True
             st.session_state.show_preview = False
@@ -170,7 +170,7 @@ with tab_student:
         q_idx = max(0, min(st.session_state.q_index, total-1))
         st.session_state.q_index = q_idx
         progress_value = max(0.0, min((q_idx + 1) / total, 1.0))
-        st.progress(progress_value, text=f"Question {q_idx+1} of {total}")
+        st.progress(progress_value, text=f"ข้อ {q_idx+1}")
 
         # Editable question text (per submission)
         key_q = f"q_{q_idx}"
