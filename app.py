@@ -174,34 +174,18 @@ with tab_student:
 
         # Editable question text (per submission)
         key_q = f"q_{q_idx}"
-        
-edited_q = st.text_input("Question", value=questions[q_idx], key=key_q,
+        edited_q = st.text_input("Question", value=questions[q_idx], key=key_q,
                                  placeholder="Type your question here")
+        questions[q_idx] = edited_q
+        st.session_state.current_questions = questions
 
-# Use a form so pressing Enter only triggers the Next submit (prevents accidental jumps)
-with st.form(key=f"qa_form_{q_idx}", clear_on_submit=False):
-    # sync question change
-    questions[q_idx] = edited_q
-    st.session_state.current_questions = questions
-
-    if len(st.session_state.answers) != total:
-        st.session_state.answers = (st.session_state.answers + [""]*total)[:total]
-    key_a = f"a_{q_idx}"
-    st.session_state.answers[q_idx] = st.text_area("Your Answer",
-                                                   value=st.session_state.answers[q_idx],
-                                                   height=140, key=key_a)
-
-    # Validation for current step
-    current_q_filled = questions[q_idx].strip() != ""
-    current_a_filled = st.session_state.answers[q_idx].strip() != ""
-    allow_next = current_q_filled and current_a_filled
-
-    form_next = st.form_submit_button("➡️ Next", disabled=(not allow_next) or (q_idx>=total-1), use_container_width=True)
-
-if form_next:
-    st.session_state.q_index = min(len(st.session_state.current_questions)-1, q_idx+1)
-    st.session_state.show_preview = False
-
+        # Answer box
+        if len(st.session_state.answers) != total:
+            st.session_state.answers = (st.session_state.answers + [""]*total)[:total]
+        key_a = f"a_{q_idx}"
+        st.session_state.answers[q_idx] = st.text_area("Your Answer",
+                                                       value=st.session_state.answers[q_idx],
+                                                       height=140, key=key_a)
 
         # Validation for current step
         current_q_filled = questions[q_idx].strip() != ""
