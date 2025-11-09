@@ -226,7 +226,12 @@ if form_next:
                 st.session_state.q_index = len(st.session_state.current_questions)-1
                 st.session_state.show_preview = False
         with c4:
-    st.write("")  # Remove button removed
+            # Remove current question (if more than 1 left)
+            if st.button("🗑 Remove this", use_container_width=True, disabled=(len(st.session_state.current_questions)<=1)):
+                st.session_state.current_questions.pop(q_idx)
+                st.session_state.answers.pop(q_idx)
+                st.session_state.q_index = max(0, min(q_idx, len(st.session_state.current_questions)-1))
+                st.session_state.show_preview = False
 
         # Check if all filled for preview
         all_filled = all(q.strip() != "" for q in st.session_state.current_questions) and \
