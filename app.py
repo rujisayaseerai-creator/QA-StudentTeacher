@@ -193,20 +193,17 @@ with tab_student:
         allow_next = current_q_filled and current_a_filled
 
         # Controls row
-        c1, c2, c3 = st.columns([1,1,1])
+        c1, c2 = st.columns([1,1])
         with c1:
             if st.button("⬅️ Back", use_container_width=True, disabled=(q_idx==0)):
                 st.session_state.q_index = max(0, q_idx-1)
                 st.session_state.show_preview = False
         with c2:
-            if st.button("➡️ Next", use_container_width=True, disabled=(not allow_next) or (q_idx>=total-1)):
+            if st.button("➡️ Next", use_container_width=True, disabled=not allow_next):
+                if q_idx >= len(st.session_state.current_questions) - 1:
+                    st.session_state.current_questions.append("")
+                    st.session_state.answers.append("")
                 st.session_state.q_index = min(len(st.session_state.current_questions)-1, q_idx+1)
-                st.session_state.show_preview = False
-        with c3:
-            # Append a brand-new question at the end (allowed anytime)
-            if st.button("➕ Add question", use_container_width=True):
-                st.session_state.current_questions.append("")
-                st.session_state.answers.append("")
                 st.session_state.show_preview = False
 
         # Check if all filled for preview
