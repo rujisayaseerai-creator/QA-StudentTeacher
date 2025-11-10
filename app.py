@@ -31,6 +31,7 @@ def init_db():
             question_no INTEGER NOT NULL,
             question TEXT NOT NULL,
             answer TEXT NOT NULL,
+            group_name TEXT,
             checked INTEGER DEFAULT 0
         );
         """
@@ -46,6 +47,11 @@ def init_db():
         );
         """
     )
+    cur.execute("PRAGMA table_info(answers)")
+    existing_cols = [row[1] for row in cur.fetchall()]
+    if "group_name" not in existing_cols:
+        cur.execute("ALTER TABLE answers ADD COLUMN group_name TEXT")
+
     con.commit()
     con.close()
 
@@ -89,13 +95,13 @@ def list_answer_dates():
     df = pd.read_sql_query("SELECT DISTINCT date_week FROM answers ORDER BY date_week DESC", con)
     con.close(); return df["date_week"].tolist()
 
-def save_answers(student_id, date_week, qa_list):
+def save_answers(student_id, date_week, qa_list, group_name=""):
     con = get_con(); cur = con.cursor()
     cur.execute("DELETE FROM answers WHERE student_id=? AND date_week=?", (student_id, date_week))
     for qno, qtext, ans in qa_list:
         cur.execute(
-            "INSERT INTO answers (student_id, date_week, question_no, question, answer, checked) VALUES (?,?,?,?,?,0)",
-            (student_id, date_week, qno, qtext, ans)
+            "INSERT INTO answers (student_id, date_week, question_no, question, answer, group_name, checked) VALUES (?,?,?,?,?,?,0)",
+            (student_id, date_week, qno, qtext, ans, group_name.strip())
         )
     con.commit(); con.close()
 
@@ -108,7 +114,7 @@ def load_answers(date_week=None, student_search=""):
         where.append("student_id LIKE ?"); params.append(f"%{student_search}%")
     wh = (" WHERE " + " AND ".join(where)) if where else ""
     df = pd.read_sql_query(
-        f"SELECT id, student_id, date_week, question_no, question, answer, checked FROM answers{wh} ORDER BY student_id, question_no",
+        f"SELECT id, student_id, date_week, question_no, question, answer, group_name, checked FROM answers{wh} ORDER BY student_id, question_no",
         con, params=params
     )
     con.close(); return df
@@ -135,6 +141,8 @@ st.session_state.setdefault("teacher_loaded", False)
 st.session_state.setdefault("current_questions", DEFAULT_QUESTIONS.copy())
 st.session_state.setdefault("allow_edit_question", True)  # default ON for convenience
 st.session_state.setdefault("nav_request", None)
+st.session_state.setdefault("group_name", "")
+st.session_state.setdefault("group_name_input", "")
 
 st.title("📚 Simple Student/Teacher Q&A Checker")
 
@@ -161,6 +169,8 @@ with tab_student:
             st.session_state.q_index = 0
             st.session_state.started = True
             st.session_state.show_preview = False
+            st.session_state.group_name = ""
+            st.session_state["group_name_input"] = ""
 
     if st.session_state.started:
         st.divider()
@@ -192,6 +202,13 @@ with tab_student:
         st.session_state.answers[q_idx] = st.text_area("Your Answer",
                                                        value=st.session_state.answers[q_idx],
                                                        height=140, key=key_a)
+
+        st.session_state.group_name = st.text_input(
+            "Group Name (optional)",
+            value=st.session_state.get("group_name", ""),
+            key="group_name_input",
+            help="Leave blank if not applicable."
+        )
 
         # Validation for current step
         current_q_filled = questions[q_idx].strip() != ""
@@ -242,13 +259,20 @@ with tab_student:
                 # Safety: still verify before saving
                 if st.button("🟦 SUBMIT", use_container_width=True, disabled=not all_filled):
                     qa = [(i+1, questions[i].strip(), st.session_state.answers[i].strip()) for i in range(total)]
-                    save_answers(student_id.strip(), date_week.strip(), qa)
+                    save_answers(
+                        student_id.strip(),
+                        date_week.strip(),
+                        qa,
+                        st.session_state.get("group_name", "")
+                    )
                     st.success("Your answers have been submitted successfully!")
                     # reset for new submission
                     st.session_state.started = False
                     st.session_state.q_index = 0
                     st.session_state.answers = [""] * len(DEFAULT_QUESTIONS)
                     st.session_state.show_preview = False
+                    st.session_state.group_name = ""
+                    st.session_state["group_name_input"] = ""
 # ---------------- Teacher ----------------
 with tab_teacher:
     st.subheader("Manage Questions & Check Answers")
@@ -330,8 +354,9 @@ with tab_teacher:
                 column_config={
                     "checked": st.column_config.CheckboxColumn("check"),
                     "question_no": st.column_config.NumberColumn("question"),
+                    "group_name": st.column_config.TextColumn("group"),
                 },
-                disabled=["id", "student_id", "date_week", "question_no", "question", "answer"],
+                disabled=["id", "student_id", "date_week", "question_no", "question", "answer", "group_name"],
                 hide_index=True,
                 use_container_width=True,
                 key="teacher_table"
