@@ -251,7 +251,8 @@ with tab_student:
             df_prev = pd.DataFrame({
                 "Question No.": list(range(1,total+1)),
                 "Question": questions,
-                "Answer": st.session_state.answers[:total]
+                "Answer": st.session_state.answers[:total],
+                "Group": [st.session_state.get("group_name", "")] * total
             })
             st.dataframe(df_prev, use_container_width=True, hide_index=True)
             colp1, colp2 = st.columns([2,1])
