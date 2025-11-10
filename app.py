@@ -84,6 +84,11 @@ def list_question_dates():
     df = pd.read_sql_query("SELECT DISTINCT date_week FROM questions ORDER BY date_week DESC", con)
     con.close(); return df["date_week"].tolist()
 
+def list_answer_dates():
+    con = get_con()
+    df = pd.read_sql_query("SELECT DISTINCT date_week FROM answers ORDER BY date_week DESC", con)
+    con.close(); return df["date_week"].tolist()
+
 def save_answers(student_id, date_week, qa_list):
     con = get_con(); cur = con.cursor()
     cur.execute("DELETE FROM answers WHERE student_id=? AND date_week=?", (student_id, date_week))
@@ -299,11 +304,21 @@ with tab_teacher:
     with c3:
         start_check = st.button("✅ START (Load)", use_container_width=True)
 
+    answer_dates = list_answer_dates()
+    effective_filter = filter_date.strip()
+    if answer_dates:
+        history_options = ["ใช้วันที่กรอกด้านบน", "ดูทุกวัน"] + answer_dates
+        selected_history = st.selectbox("เลือกจากประวัติคำตอบ", history_options, index=0, key="answer_history_select")
+        if selected_history == "ดูทุกวัน":
+            effective_filter = ""
+        elif selected_history != "ใช้วันที่กรอกด้านบน":
+            effective_filter = selected_history
+
     if start_check:
         st.session_state.teacher_loaded = True
 
     if st.session_state.get("teacher_loaded"):
-        df = load_answers(filter_date.strip() or None, student_search.strip())
+        df = load_answers(effective_filter or None, student_search.strip())
         if df.empty:
             st.info("No data found. Try adjusting filters or ask students to submit.")
         else:
@@ -324,7 +339,7 @@ with tab_teacher:
             changed_to_true = edited[(edited["checked"] == True) & (df["checked"] == 0)]
             changed_to_false = edited[(edited["checked"] == False) & (df["checked"] == 1)]
 
-            colu1, colu2, colu3 = st.columns([1,1,1])
+            colu1, colu2, colu3, colu4 = st.columns([1,1,1,1])
             with colu1:
                 if st.button("💾 Save Checks", use_container_width=True):
                     update_checked(changed_to_true["id"].tolist(), True)
@@ -335,7 +350,11 @@ with tab_teacher:
                     update_checked(edited["id"].tolist(), True)
                     st.success("All rows marked as checked.")
             with colu3:
+                if st.button("🧹 Clear All Checks", use_container_width=True):
+                    update_checked(edited["id"].tolist(), False)
+                    st.success("All rows cleared.")
+            with colu4:
                 csv = edited.to_csv(index=False).encode("utf-8")
-                st.download_button("⬇️ Export CSV", csv, file_name=f"answers_{filter_date or 'all'}.csv", mime="text/csv", use_container_width=True)
+                st.download_button("⬇️ Export CSV", csv, file_name=f"answers_{(effective_filter or 'all')}.csv", mime="text/csv", use_container_width=True)
 
     st.caption("Tip: Students can append extra questions before submitting. Default question set is provided by the teacher per Date/Week.")
