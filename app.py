@@ -142,7 +142,6 @@ st.session_state.setdefault("current_questions", DEFAULT_QUESTIONS.copy())
 st.session_state.setdefault("allow_edit_question", True)  # default ON for convenience
 st.session_state.setdefault("nav_request", None)
 st.session_state.setdefault("group_name", "")
-st.session_state.setdefault("group_name_input", "")
 
 st.title("📚 Simple Student/Teacher Q&A Checker")
 
@@ -170,7 +169,7 @@ with tab_student:
             st.session_state.started = True
             st.session_state.show_preview = False
             st.session_state.group_name = ""
-            st.session_state["group_name_input"] = ""
+            st.session_state.pop("group_name_input", None)
 
     if st.session_state.started:
         st.divider()
@@ -203,12 +202,12 @@ with tab_student:
                                                        value=st.session_state.answers[q_idx],
                                                        height=140, key=key_a)
 
-        st.session_state.group_name = st.text_input(
+        group_value = st.text_input(
             "Group Name (optional)",
-            value=st.session_state.get("group_name", ""),
             key="group_name_input",
             help="Leave blank if not applicable."
         )
+        st.session_state.group_name = group_value.strip()
 
         # Validation for current step
         current_q_filled = questions[q_idx].strip() != ""
@@ -273,7 +272,7 @@ with tab_student:
                     st.session_state.answers = [""] * len(DEFAULT_QUESTIONS)
                     st.session_state.show_preview = False
                     st.session_state.group_name = ""
-                    st.session_state["group_name_input"] = ""
+                    st.session_state.pop("group_name_input", None)
 # ---------------- Teacher ----------------
 with tab_teacher:
     st.subheader("Manage Questions & Check Answers")
