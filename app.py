@@ -489,33 +489,41 @@ with tab_teacher:
             if not all_ids:
                 st.info("ยังไม่มีนักเรียนกด Login สำหรับวันที่นี้")
             else:
-                merged = pd.DataFrame({"student_id": all_ids})
-                if not scores_df.empty:
-                    merged = merged.merge(
-                        scores_df[["student_id", "score", "note"]],
-                        on="student_id",
-                        how="left",
-                    )
-                merged = merged.rename(columns={"note": "remark"})
-                edited_scores = st.data_editor(
-                    merged,
-                    column_config={
-                        "student_id": st.column_config.TextColumn("Student ID", disabled=True),
-                        "score": st.column_config.NumberColumn("Score", step=1.0),
-                        "remark": st.column_config.TextColumn("Remark"),
-                    },
-                    hide_index=True,
-                    use_container_width=True,
-                    key="class_score_editor",
-                )
+                existing_scores = {row["student_id"]: row["score"] for _, row in scores_df.iterrows()} if not scores_df.empty else {}
+                score_state_key = f"class_scores_values_{score_date}"
+                if (score_state_key not in st.session_state) or (st.session_state.get("class_scores_date") != score_date):
+                    st.session_state["class_scores_date"] = score_date
+                    st.session_state[score_state_key] = {sid: existing_scores.get(sid, 0.0) for sid in all_ids}
+                else:
+                    # ensure newly logged students appear with default score
+                    for sid in all_ids:
+                        st.session_state[score_state_key].setdefault(sid, existing_scores.get(sid, 0.0))
+
+                st.markdown("**Students & Scores**")
+                header_cols = st.columns([3,1,1,1])
+                header_cols[0].markdown("**Student ID**")
+                header_cols[1].markdown("**−**")
+                header_cols[2].markdown("**Score**")
+                header_cols[3].markdown("**+**")
+
+                score_map = st.session_state[score_state_key]
+                for sid in all_ids:
+                    cols = st.columns([3,1,1,1])
+                    cols[0].write(sid)
+                    if cols[1].button("➖", key=f"score_minus_{score_date}_{sid}"):
+                        score_map[sid] = score_map.get(sid, 0.0) - 1
+                        st.session_state[score_state_key] = score_map
+                        st.rerun()
+                    cols[2].markdown(f"<div style='text-align:center;font-weight:bold;'>{score_map.get(sid,0)}</div>", unsafe_allow_html=True)
+                    if cols[3].button("➕", key=f"score_plus_{score_date}_{sid}"):
+                        score_map[sid] = score_map.get(sid, 0.0) + 1
+                        st.session_state[score_state_key] = score_map
+                        st.rerun()
+
                 if st.button("💾 Save Scores", use_container_width=True, key="save_scores"):
                     rows = [
-                        (
-                            row["student_id"],
-                            row.get("score"),
-                            row.get("remark", "") if row.get("remark") is not None else "",
-                        )
-                        for _, row in edited_scores.iterrows()
+                        (sid, score_map.get(sid, 0.0), "")
+                        for sid in all_ids
                     ]
                     save_class_scores(score_date, rows)
                     st.success("บันทึกคะแนนเรียบร้อยแล้ว")
