@@ -162,8 +162,12 @@ with tab_student:
         if not student_id.strip():
             st.warning("Please enter Student ID.")
         else:
-            st.session_state.current_questions = [""]  # start with one blank question
-            st.session_state.answers = [""]
+            selected_date = date_week.strip() or str(date.today())
+            question_set = load_questions(selected_date)
+            if not question_set:
+                question_set = [""]
+            st.session_state.current_questions = question_set
+            st.session_state.answers = [""] * len(question_set)
             st.session_state.q_index = 0
             st.session_state.started = True
             st.session_state.show_preview = False
