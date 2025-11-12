@@ -208,6 +208,22 @@ def save_class_scores(date_week: str, score_rows) -> None:
         )
     con.commit(); con.close()
 
+
+def load_answer_counts(date_week: str | None) -> dict[str, int]:
+    """Return number of answers submitted per student for given date."""
+    if not date_week:
+        return {}
+    con = get_con()
+    df = pd.read_sql_query(
+        "SELECT student_id, COUNT(*) AS total FROM answers WHERE date_week=? GROUP BY student_id",
+        con,
+        params=[date_week],
+    )
+    con.close()
+    if df.empty:
+        return {}
+    return dict(zip(df["student_id"], df["total"]))
+
 # ---------- App ----------
 init_db()
 st.set_page_config(page_title="Q&A Checker", page_icon="✅", layout="centered")
@@ -483,6 +499,7 @@ with tab_teacher:
             score_date = manage_date.strip()
             logged_students = list_logged_students(score_date)
             scores_df = load_class_scores(score_date)
+            answer_counts = load_answer_counts(score_date)
             all_ids = sorted(
                 set(logged_students["student_id"].tolist()) | set(scores_df["student_id"].tolist())
             )
@@ -519,6 +536,21 @@ with tab_teacher:
                         score_map[sid] = score_map.get(sid, 0.0) + 1
                         st.session_state[score_state_key] = score_map
                         st.rerun()
+
+                summary_rows = []
+                for sid in all_ids:
+                    answer_score = answer_counts.get(sid, 0)
+                    class_score = score_map.get(sid, 0.0)
+                    summary_rows.append(
+                        {
+                            "Student ID": sid,
+                            "Answers": answer_score,
+                            "Class Score": class_score,
+                            "Total": answer_score + (class_score or 0),
+                        }
+                    )
+                st.markdown("**รวมคะแนนจากการตอบ + คะแนนในคลาส**")
+                st.dataframe(pd.DataFrame(summary_rows), hide_index=True, use_container_width=True)
 
                 if st.button("💾 Save Scores", use_container_width=True, key="save_scores"):
                     rows = [
