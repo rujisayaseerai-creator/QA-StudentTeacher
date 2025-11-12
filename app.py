@@ -226,7 +226,7 @@ with tab_student:
                     st.session_state.answers.append("")
                 st.session_state.q_index = min(len(st.session_state.current_questions)-1, q_idx+1)
                 st.session_state.show_preview = False
-                st.experimental_rerun()
+                st.rerun()
 
         # Check if all filled for preview
         all_filled = all(q.strip() != "" for q in st.session_state.current_questions) and \
