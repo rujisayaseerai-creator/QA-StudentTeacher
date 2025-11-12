@@ -47,6 +47,29 @@ def init_db():
         );
         """
     )
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS student_logins (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_id TEXT NOT NULL,
+            date_week TEXT NOT NULL,
+            logged_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(student_id, date_week) ON CONFLICT IGNORE
+        );
+        """
+    )
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS class_scores (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_id TEXT NOT NULL,
+            date_week TEXT NOT NULL,
+            score REAL,
+            note TEXT,
+            UNIQUE(student_id, date_week) ON CONFLICT REPLACE
+        );
+        """
+    )
     cur.execute("PRAGMA table_info(answers)")
     existing_cols = [row[1] for row in cur.fetchall()]
     if "group_name" not in existing_cols:
@@ -128,6 +151,63 @@ def update_checked(ids, checked=True):
     )
     con.commit(); con.close()
 
+
+def log_student_login(student_id: str, date_week: str) -> None:
+    """Record a student login for the class scoring list."""
+    if not student_id or not date_week:
+        return
+    con = get_con(); cur = con.cursor()
+    cur.execute(
+        "INSERT OR IGNORE INTO student_logins (student_id, date_week) VALUES (?, ?)",
+        (student_id, date_week),
+    )
+    con.commit(); con.close()
+
+
+def list_logged_students(date_week: str | None = None) -> pd.DataFrame:
+    """Return DataFrame of students who pressed Login."""
+    con = get_con()
+    if date_week:
+        df = pd.read_sql_query(
+            "SELECT student_id, date_week, logged_at FROM student_logins WHERE date_week=? ORDER BY logged_at",
+            con,
+            params=[date_week],
+        )
+    else:
+        df = pd.read_sql_query(
+            "SELECT student_id, date_week, logged_at FROM student_logins ORDER BY logged_at DESC",
+            con,
+        )
+    con.close()
+    return df
+
+
+def load_class_scores(date_week: str | None) -> pd.DataFrame:
+    con = get_con()
+    if date_week:
+        df = pd.read_sql_query(
+            "SELECT student_id, date_week, score, note FROM class_scores WHERE date_week=?",
+            con,
+            params=[date_week],
+        )
+    else:
+        df = pd.read_sql_query(
+            "SELECT student_id, date_week, score, note FROM class_scores",
+            con,
+        )
+    con.close()
+    return df
+
+
+def save_class_scores(date_week: str, score_rows) -> None:
+    con = get_con(); cur = con.cursor()
+    for student_id, score, note in score_rows:
+        cur.execute(
+            "INSERT INTO class_scores (student_id, date_week, score, note) VALUES (?,?,?,?)",
+            (student_id, date_week, score, note),
+        )
+    con.commit(); con.close()
+
 # ---------- App ----------
 init_db()
 st.set_page_config(page_title="Q&A Checker", page_icon="✅", layout="centered")
@@ -156,13 +236,25 @@ with tab_student:
     with col2:
         date_week = st.text_input("Date / Week", value=str(date.today()), help="Use same label as teacher's question set.")
 
-    start = st.button("✅ START", use_container_width=True)
+    start_col, login_col = st.columns([1,1])
+    with start_col:
+        start = st.button("✅ START", use_container_width=True)
+    with login_col:
+        login_clicked = st.button("🔐 LOGIN", use_container_width=True)
+
+    selected_date = date_week.strip() or str(date.today())
+
+    if login_clicked:
+        if not student_id.strip():
+            st.warning("Please enter Student ID before logging in.")
+        else:
+            log_student_login(student_id.strip(), selected_date)
+            st.success("Login sent to teacher for attendance/scoring.")
 
     if start:
         if not student_id.strip():
             st.warning("Please enter Student ID.")
         else:
-            selected_date = date_week.strip() or str(date.today())
             question_set = load_questions(selected_date)
             if not question_set:
                 question_set = [""]
@@ -385,5 +477,47 @@ with tab_teacher:
                 with colu4:
                     csv = edited.to_csv(index=False).encode("utf-8")
                     st.download_button("⬇️ Export CSV", csv, file_name=f"answers_{(effective_filter or 'all')}.csv", mime="text/csv", use_container_width=True)
+
+
+        with st.expander("🎯 Class Scoring", expanded=False):
+            score_date = manage_date.strip()
+            logged_students = list_logged_students(score_date)
+            scores_df = load_class_scores(score_date)
+            all_ids = sorted(
+                set(logged_students["student_id"].tolist()) | set(scores_df["student_id"].tolist())
+            )
+            if not all_ids:
+                st.info("ยังไม่มีนักเรียนกด Login สำหรับวันที่นี้")
+            else:
+                merged = pd.DataFrame({"student_id": all_ids})
+                if not scores_df.empty:
+                    merged = merged.merge(
+                        scores_df[["student_id", "score", "note"]],
+                        on="student_id",
+                        how="left",
+                    )
+                merged = merged.rename(columns={"note": "remark"})
+                edited_scores = st.data_editor(
+                    merged,
+                    column_config={
+                        "student_id": st.column_config.TextColumn("Student ID", disabled=True),
+                        "score": st.column_config.NumberColumn("Score", step=1.0),
+                        "remark": st.column_config.TextColumn("Remark"),
+                    },
+                    hide_index=True,
+                    use_container_width=True,
+                    key="class_score_editor",
+                )
+                if st.button("💾 Save Scores", use_container_width=True, key="save_scores"):
+                    rows = [
+                        (
+                            row["student_id"],
+                            row.get("score"),
+                            row.get("remark", "") if row.get("remark") is not None else "",
+                        )
+                        for _, row in edited_scores.iterrows()
+                    ]
+                    save_class_scores(score_date, rows)
+                    st.success("บันทึกคะแนนเรียบร้อยแล้ว")
 
         st.caption("Tip: Students can append extra questions before submitting. Default question set is provided by the teacher per Date/Week.")
