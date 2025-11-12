@@ -275,110 +275,115 @@ with tab_student:
 # ---------------- Teacher ----------------
 with tab_teacher:
     st.subheader("Manage Questions & Check Answers")
-    m1, m2 = st.columns([1,1])
-    with m1:
-        teacher_name = st.text_input("Teacher Name", placeholder="e.g., Ms. June")
-    with m2:
-        manage_date = st.text_input("Date / Week (for Question Set)", value=str(date.today()))
+    access_code = st.text_input("Teacher Access Code", type="password", placeholder="Enter 1234")
 
-    with st.expander("📝 Edit Question Set for this Date/Week", expanded=True):
-        existing_dates = list_question_dates()
-        if existing_dates:
-            st.caption("Load from saved sets:")
-            load_select = st.selectbox("Saved dates", options=["(select)"] + existing_dates, index=0)
-            if load_select != "(select)":
-                manage_date = load_select
+    if access_code.strip() != "1234":
+        st.info("กรุณากรอกรหัส 1234 เพื่อจัดการชุดคำถามและตรวจคำตอบ")
+    else:
+        m1, m2 = st.columns([1,1])
+        with m1:
+            teacher_name = st.text_input("Teacher Name", placeholder="e.g., Ms. June")
+        with m2:
+            manage_date = st.text_input("Date / Week (for Question Set)", value=str(date.today()))
+
+        with st.expander("📝 Edit Question Set for this Date/Week", expanded=True):
+            existing_dates = list_question_dates()
+            if existing_dates:
+                st.caption("Load from saved sets:")
+                load_select = st.selectbox("Saved dates", options=["(select)"] + existing_dates, index=0)
+                if load_select != "(select)":
+                    manage_date = load_select
+                    st.session_state["tmp_questions"] = load_questions(manage_date)
+
+            if "tmp_questions" not in st.session_state:
                 st.session_state["tmp_questions"] = load_questions(manage_date)
 
-        if "tmp_questions" not in st.session_state:
-            st.session_state["tmp_questions"] = load_questions(manage_date)
+            num = st.number_input("Number of questions", min_value=1, max_value=30, value=len(st.session_state["tmp_questions"]), step=1)
+            qlist = st.session_state["tmp_questions"]
+            if len(qlist) < num:
+                qlist = qlist + [""]*(num-len(qlist))
+            elif len(qlist) > num:
+                qlist = qlist[:num]
 
-        num = st.number_input("Number of questions", min_value=1, max_value=30, value=len(st.session_state["tmp_questions"]), step=1)
-        qlist = st.session_state["tmp_questions"]
-        if len(qlist) < num:
-            qlist = qlist + [""]*(num-len(qlist))
-        elif len(qlist) > num:
-            qlist = qlist[:num]
+            new_questions = []
+            for i in range(int(num)):
+                new_questions.append(st.text_input(f"Q{i+1}", value=qlist[i], placeholder=f"Enter question {i+1}"))
+            st.session_state["tmp_questions"] = new_questions
 
-        new_questions = []
-        for i in range(int(num)):
-            new_questions.append(st.text_input(f"Q{i+1}", value=qlist[i], placeholder=f"Enter question {i+1}"))
-        st.session_state["tmp_questions"] = new_questions
+            cqs1, cqs2, cqs3 = st.columns([1,1,1])
+            with cqs1:
+                if st.button("💾 Save Question Set", use_container_width=True):
+                    save_question_set(manage_date.strip(), new_questions)
+                    st.success(f"Saved {len(new_questions)} questions for {manage_date}.")
+            with cqs2:
+                if st.button("🔄 Reset to Default", use_container_width=True):
+                    st.session_state["tmp_questions"] = DEFAULT_QUESTIONS.copy()
+            with cqs3:
+                if st.button("📥 Load Current Saved", use_container_width=True):
+                    st.session_state["tmp_questions"] = load_questions(manage_date.strip())
 
-        cqs1, cqs2, cqs3 = st.columns([1,1,1])
-        with cqs1:
-            if st.button("💾 Save Question Set", use_container_width=True):
-                save_question_set(manage_date.strip(), new_questions)
-                st.success(f"Saved {len(new_questions)} questions for {manage_date}.")
-        with cqs2:
-            if st.button("🔄 Reset to Default", use_container_width=True):
-                st.session_state["tmp_questions"] = DEFAULT_QUESTIONS.copy()
-        with cqs3:
-            if st.button("📥 Load Current Saved", use_container_width=True):
-                st.session_state["tmp_questions"] = load_questions(manage_date.strip())
+        st.divider()
 
-    st.divider()
+        c1, c2, c3 = st.columns([1,1,1])
+        with c1:
+            filter_date = st.text_input("Filter Date / Week", value=manage_date, placeholder="YYYY-MM-DD")
+        with c2:
+            student_search = st.text_input("Search Student ID", placeholder="e.g., S001")
+        with c3:
+            start_check = st.button("✅ START (Load)", use_container_width=True)
 
-    c1, c2, c3 = st.columns([1,1,1])
-    with c1:
-        filter_date = st.text_input("Filter Date / Week", value=manage_date, placeholder="YYYY-MM-DD")
-    with c2:
-        student_search = st.text_input("Search Student ID", placeholder="e.g., S001")
-    with c3:
-        start_check = st.button("✅ START (Load)", use_container_width=True)
+        answer_dates = list_answer_dates()
+        effective_filter = filter_date.strip()
+        if answer_dates:
+            history_options = ["ใช้วันที่กรอกด้านบน", "ดูทุกวัน"] + answer_dates
+            selected_history = st.selectbox("เลือกจากประวัติคำตอบ", history_options, index=0, key="answer_history_select")
+            if selected_history == "ดูทุกวัน":
+                effective_filter = ""
+            elif selected_history != "ใช้วันที่กรอกด้านบน":
+                effective_filter = selected_history
 
-    answer_dates = list_answer_dates()
-    effective_filter = filter_date.strip()
-    if answer_dates:
-        history_options = ["ใช้วันที่กรอกด้านบน", "ดูทุกวัน"] + answer_dates
-        selected_history = st.selectbox("เลือกจากประวัติคำตอบ", history_options, index=0, key="answer_history_select")
-        if selected_history == "ดูทุกวัน":
-            effective_filter = ""
-        elif selected_history != "ใช้วันที่กรอกด้านบน":
-            effective_filter = selected_history
+        if start_check:
+            st.session_state.teacher_loaded = True
 
-    if start_check:
-        st.session_state.teacher_loaded = True
+        if st.session_state.get("teacher_loaded"):
+            df = load_answers(effective_filter or None, student_search.strip())
+            if df.empty:
+                st.info("No data found. Try adjusting filters or ask students to submit.")
+            else:
+                st.write("Toggle ✅ to mark answers as checked.")
+                edited = df.copy()
+                edited["checked"] = edited["checked"].astype(bool)
+                edited = st.data_editor(
+                    edited,
+                    column_config={
+                        "checked": st.column_config.CheckboxColumn("check"),
+                        "question_no": st.column_config.NumberColumn("question"),
+                        "group_name": st.column_config.TextColumn("group"),
+                    },
+                    disabled=["id", "student_id", "date_week", "question_no", "question", "answer", "group_name"],
+                    hide_index=True,
+                    use_container_width=True,
+                    key="teacher_table"
+                )
+                changed_to_true = edited[(edited["checked"] == True) & (df["checked"] == 0)]
+                changed_to_false = edited[(edited["checked"] == False) & (df["checked"] == 1)]
 
-    if st.session_state.get("teacher_loaded"):
-        df = load_answers(effective_filter or None, student_search.strip())
-        if df.empty:
-            st.info("No data found. Try adjusting filters or ask students to submit.")
-        else:
-            st.write("Toggle ✅ to mark answers as checked.")
-            edited = df.copy()
-            edited["checked"] = edited["checked"].astype(bool)
-            edited = st.data_editor(
-                edited,
-                column_config={
-                    "checked": st.column_config.CheckboxColumn("check"),
-                    "question_no": st.column_config.NumberColumn("question"),
-                    "group_name": st.column_config.TextColumn("group"),
-                },
-                disabled=["id", "student_id", "date_week", "question_no", "question", "answer", "group_name"],
-                hide_index=True,
-                use_container_width=True,
-                key="teacher_table"
-            )
-            changed_to_true = edited[(edited["checked"] == True) & (df["checked"] == 0)]
-            changed_to_false = edited[(edited["checked"] == False) & (df["checked"] == 1)]
+                colu1, colu2, colu3, colu4 = st.columns([1,1,1,1])
+                with colu1:
+                    if st.button("💾 Save Checks", use_container_width=True):
+                        update_checked(changed_to_true["id"].tolist(), True)
+                        update_checked(changed_to_false["id"].tolist(), False)
+                        st.success("Saved check status.")
+                with colu2:
+                    if st.button("☑️ Mark All as Checked", use_container_width=True):
+                        update_checked(edited["id"].tolist(), True)
+                        st.success("All rows marked as checked.")
+                with colu3:
+                    if st.button("🧹 Clear All Checks", use_container_width=True):
+                        update_checked(edited["id"].tolist(), False)
+                        st.success("All rows cleared.")
+                with colu4:
+                    csv = edited.to_csv(index=False).encode("utf-8")
+                    st.download_button("⬇️ Export CSV", csv, file_name=f"answers_{(effective_filter or 'all')}.csv", mime="text/csv", use_container_width=True)
 
-            colu1, colu2, colu3, colu4 = st.columns([1,1,1,1])
-            with colu1:
-                if st.button("💾 Save Checks", use_container_width=True):
-                    update_checked(changed_to_true["id"].tolist(), True)
-                    update_checked(changed_to_false["id"].tolist(), False)
-                    st.success("Saved check status.")
-            with colu2:
-                if st.button("☑️ Mark All as Checked", use_container_width=True):
-                    update_checked(edited["id"].tolist(), True)
-                    st.success("All rows marked as checked.")
-            with colu3:
-                if st.button("🧹 Clear All Checks", use_container_width=True):
-                    update_checked(edited["id"].tolist(), False)
-                    st.success("All rows cleared.")
-            with colu4:
-                csv = edited.to_csv(index=False).encode("utf-8")
-                st.download_button("⬇️ Export CSV", csv, file_name=f"answers_{(effective_filter or 'all')}.csv", mime="text/csv", use_container_width=True)
-
-    st.caption("Tip: Students can append extra questions before submitting. Default question set is provided by the teacher per Date/Week.")
+        st.caption("Tip: Students can append extra questions before submitting. Default question set is provided by the teacher per Date/Week.")
