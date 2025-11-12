@@ -140,7 +140,6 @@ st.session_state.setdefault("show_preview", False)
 st.session_state.setdefault("teacher_loaded", False)
 st.session_state.setdefault("current_questions", DEFAULT_QUESTIONS.copy())
 st.session_state.setdefault("allow_edit_question", True)  # default ON for convenience
-st.session_state.setdefault("nav_request", None)
 st.session_state.setdefault("group_name", "")
 
 st.title("📚 Simple Student/Teacher Q&A Checker")
@@ -222,16 +221,12 @@ with tab_student:
                 st.session_state.show_preview = False
         with c2:
             if st.button("➡️ Next", use_container_width=True, disabled=not allow_next, key=f"next_btn_{q_idx}"):
-                st.session_state.nav_request = {"action": "next", "index": q_idx}
-
-        nav_req = st.session_state.pop("nav_request", None)
-        if nav_req and nav_req.get("action") == "next":
-            idx = nav_req.get("index", st.session_state.q_index)
-            if idx >= len(st.session_state.current_questions) - 1:
-                st.session_state.current_questions.append("")
-                st.session_state.answers.append("")
-            st.session_state.q_index = min(len(st.session_state.current_questions)-1, idx+1)
-            st.session_state.show_preview = False
+                if q_idx >= len(st.session_state.current_questions) - 1:
+                    st.session_state.current_questions.append("")
+                    st.session_state.answers.append("")
+                st.session_state.q_index = min(len(st.session_state.current_questions)-1, q_idx+1)
+                st.session_state.show_preview = False
+                st.experimental_rerun()
 
         # Check if all filled for preview
         all_filled = all(q.strip() != "" for q in st.session_state.current_questions) and \
