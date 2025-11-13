@@ -516,16 +516,12 @@ with tab_teacher:
 
         st.divider()
 
-        c1, c2, c3 = st.columns([1, 1, 1])
+        c1, c2 = st.columns([2, 1])
         with c1:
             filter_date = st.text_input(
                 "Filter Date / Week", value=manage_date, placeholder="YYYY-MM-DD"
             )
         with c2:
-            student_search = st.text_input(
-                "Search Student ID", placeholder="e.g., S001"
-            )
-        with c3:
             start_check = st.button("✅ START (Load)", use_container_width=True)
 
         answer_dates = list_answer_dates()
@@ -547,7 +543,7 @@ with tab_teacher:
             st.session_state.teacher_loaded = True
 
         if st.session_state.get("teacher_loaded"):
-            df = load_answers(effective_filter or None, student_search.strip())
+            df = load_answers(effective_filter or None)
             if df.empty:
                 st.info(
                     "No data found. Try adjusting filters or ask students to submit."
