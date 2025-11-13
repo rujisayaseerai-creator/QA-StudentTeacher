@@ -260,6 +260,27 @@ def load_answer_counts(date_week: str | None) -> dict[str, int]:
     return dict(zip(df["student_id"], df["total"]))
 
 
+def load_student_groups(date_week: str | None) -> dict[str, str]:
+    """Return mapping of student_id -> group_name for a given date."""
+    if not date_week:
+        return {}
+    con = get_con()
+    df = pd.read_sql_query(
+        """
+        SELECT student_id, MAX(COALESCE(group_name, '')) AS group_name
+        FROM answers
+        WHERE date_week=?
+        GROUP BY student_id
+        """,
+        con,
+        params=[date_week],
+    )
+    con.close()
+    if df.empty:
+        return {}
+    return dict(zip(df["student_id"], df["group_name"]))
+
+
 # ---------- App ----------
 init_db()
 st.set_page_config(page_title="Q&A Checker", page_icon="✅", layout="centered")
@@ -565,6 +586,7 @@ with tab_teacher:
             logged_students = list_logged_students(score_date)
             scores_df = load_class_scores(score_date)
             answer_counts = load_answer_counts(score_date)
+            group_map = load_student_groups(score_date)
             all_ids = sorted(
                 set(logged_students["student_id"].tolist())
                 | set(scores_df["student_id"].tolist())
@@ -620,20 +642,46 @@ with tab_teacher:
                 for sid in all_ids:
                     answer_score = answer_counts.get(sid, 0)
                     class_score = score_map.get(sid, 0.0)
+                    group_label = group_map.get(sid, "").strip()
                     summary_rows.append(
                         {
                             "Student ID": sid,
+                            "Group": group_label,
                             "Answers": answer_score,
                             "Class Score": class_score,
                             "Total": answer_score + (class_score or 0),
                         }
                     )
                 st.markdown("**รวมคะแนนจากการตอบ + คะแนนในคลาส**")
+                summary_df = pd.DataFrame(summary_rows)
                 st.dataframe(
-                    pd.DataFrame(summary_rows),
+                    summary_df,
                     hide_index=True,
                     use_container_width=True,
                 )
+
+                if not summary_df.empty:
+                    group_df = (
+                        summary_df.assign(
+                            Group=summary_df["Group"].apply(
+                                lambda g: g if g else "ไม่ระบุกลุ่ม"
+                            )
+                        )
+                        .groupby("Group", as_index=False)
+                        .agg(
+                            Members=("Student ID", "count"),
+                            Answers=("Answers", "sum"),
+                            ClassScore=("Class Score", "sum"),
+                        )
+                    )
+                    group_df["Total"] = group_df["Answers"] + group_df["ClassScore"]
+                    group_df.rename(columns={"ClassScore": "Class Score"}, inplace=True)
+                    st.markdown("**สรุปคะแนนตามกลุ่ม**")
+                    st.dataframe(
+                        group_df,
+                        hide_index=True,
+                        use_container_width=True,
+                    )
 
                 if st.button(
                     "💾 Save Scores", use_container_width=True, key="save_scores"
