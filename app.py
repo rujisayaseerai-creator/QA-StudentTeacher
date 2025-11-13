@@ -294,6 +294,8 @@ st.session_state.setdefault("teacher_loaded", False)
 st.session_state.setdefault("current_questions", DEFAULT_QUESTIONS.copy())
 st.session_state.setdefault("allow_edit_question", True)  # default ON for convenience
 st.session_state.setdefault("group_name", "")
+st.session_state.setdefault("answers_export_df", None)
+st.session_state.setdefault("answers_export_label", "all")
 
 st.title("📚 Simple Student/Teacher Q&A Checker")
 
@@ -569,17 +571,13 @@ with tab_teacher:
                 st.info(
                     "No data found. Try adjusting filters or ask students to submit."
                 )
+                st.session_state["answers_export_df"] = None
+                st.session_state["answers_export_label"] = effective_filter or "all"
             else:
                 display_df = df.drop(columns=["checked"]) if "checked" in df else df
                 st.dataframe(display_df, hide_index=True, use_container_width=True)
-                csv = display_df.to_csv(index=False).encode("utf-8")
-                st.download_button(
-                    "⬇️ Export CSV",
-                    csv,
-                    file_name=f"answers_{(effective_filter or 'all')}.csv",
-                    mime="text/csv",
-                    use_container_width=True,
-                )
+                st.session_state["answers_export_df"] = display_df
+                st.session_state["answers_export_label"] = effective_filter or "all"
 
         with st.expander("🎯 Class Scoring", expanded=False):
             score_date = manage_date.strip()
@@ -683,12 +681,20 @@ with tab_teacher:
                         use_container_width=True,
                     )
 
-                if st.button(
-                    "💾 Save Scores", use_container_width=True, key="save_scores"
-                ):
-                    rows = [(sid, score_map.get(sid, 0.0), "") for sid in all_ids]
-                    save_class_scores(score_date, rows)
-                    st.success("บันทึกคะแนนเรียบร้อยแล้ว")
+                export_df = st.session_state.get("answers_export_df")
+                export_label = st.session_state.get("answers_export_label", "all")
+                if export_df is not None and not export_df.empty:
+                    csv = export_df.to_csv(index=False).encode("utf-8")
+                    st.download_button(
+                        "⬇️ Export CSV",
+                        csv,
+                        file_name=f"answers_{export_label}.csv",
+                        mime="text/csv",
+                        use_container_width=True,
+                        key="export_answers_csv_bottom",
+                    )
+                else:
+                    st.caption("Load answers above to enable CSV export.")
 
         st.caption(
             "Tip: Students can append extra questions before submitting. Default question set is provided by the teacher per Date/Week."
