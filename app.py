@@ -549,66 +549,16 @@ with tab_teacher:
                     "No data found. Try adjusting filters or ask students to submit."
                 )
             else:
-                df["checked"] = df["checked"].astype(bool)
-                st.write("Toggle ✅ to mark answers as checked.")
-                edited = st.data_editor(
-                    df.copy(),
-                    column_config={
-                        "checked": st.column_config.CheckboxColumn("check"),
-                        "question_no": st.column_config.NumberColumn("question"),
-                        "group_name": st.column_config.TextColumn("group"),
-                    },
-                    disabled=[
-                        "id",
-                        "student_id",
-                        "date_week",
-                        "question_no",
-                        "question",
-                        "answer",
-                        "group_name",
-                    ],
-                    hide_index=True,
+                display_df = df.drop(columns=["checked"]) if "checked" in df else df
+                st.dataframe(display_df, hide_index=True, use_container_width=True)
+                csv = display_df.to_csv(index=False).encode("utf-8")
+                st.download_button(
+                    "⬇️ Export CSV",
+                    csv,
+                    file_name=f"answers_{(effective_filter or 'all')}.csv",
+                    mime="text/csv",
                     use_container_width=True,
-                    key="teacher_table",
                 )
-                edited["checked"] = edited["checked"].astype(bool)
-                original_checks = df.set_index("id")["checked"]
-                edited_checks = edited.set_index("id")["checked"]
-                base_checks = (
-                    original_checks.reindex(edited_checks.index)
-                    .fillna(False)
-                    .astype(bool)
-                )
-                changed_to_true_ids = edited_checks[
-                    (edited_checks) & (~base_checks)
-                ].index.tolist()
-                changed_to_false_ids = edited_checks[
-                    (~edited_checks) & (base_checks)
-                ].index.tolist()
-
-                colu1, colu2, colu3, colu4 = st.columns([1, 1, 1, 1])
-                with colu1:
-                    if st.button("💾 Save Checks", use_container_width=True):
-                        update_checked(changed_to_true_ids, True)
-                        update_checked(changed_to_false_ids, False)
-                        st.success("Saved check status.")
-                with colu2:
-                    if st.button("☑️ Mark All as Checked", use_container_width=True):
-                        update_checked(edited["id"].tolist(), True)
-                        st.success("All rows marked as checked.")
-                with colu3:
-                    if st.button("🧹 Clear All Checks", use_container_width=True):
-                        update_checked(edited["id"].tolist(), False)
-                        st.success("All rows cleared.")
-                with colu4:
-                    csv = edited.to_csv(index=False).encode("utf-8")
-                    st.download_button(
-                        "⬇️ Export CSV",
-                        csv,
-                        file_name=f"answers_{(effective_filter or 'all')}.csv",
-                        mime="text/csv",
-                        use_container_width=True,
-                    )
 
         with st.expander("🎯 Class Scoring", expanded=False):
             score_date = manage_date.strip()
