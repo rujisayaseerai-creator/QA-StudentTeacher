@@ -575,6 +575,33 @@ with tab_teacher:
                 st.session_state["answers_export_label"] = effective_filter or "all"
             else:
                 display_df = df.drop(columns=["checked"]) if "checked" in df else df
+                counts_df = (
+                    display_df.groupby(["student_id", "date_week"])
+                    .size()
+                    .reset_index(name="Answer Count")
+                )
+                display_df = display_df.merge(
+                    counts_df, how="left", on=["student_id", "date_week"]
+                )
+                class_scores_df = load_class_scores(None)
+                if not class_scores_df.empty:
+                    class_scores_df = class_scores_df.rename(
+                        columns={"score": "Class Score"}
+                    )
+                    display_df = display_df.merge(
+                        class_scores_df[["student_id", "date_week", "Class Score"]],
+                        how="left",
+                        on=["student_id", "date_week"],
+                    )
+                else:
+                    display_df["Class Score"] = 0.0
+                display_df["Answer Count"] = (
+                    display_df["Answer Count"].fillna(0).astype(int)
+                )
+                display_df["Class Score"] = display_df["Class Score"].fillna(0.0)
+                display_df["Total Score"] = (
+                    display_df["Answer Count"] + display_df["Class Score"]
+                )
                 st.dataframe(display_df, hide_index=True, use_container_width=True)
                 st.session_state["answers_export_df"] = display_df
                 st.session_state["answers_export_label"] = effective_filter or "all"
