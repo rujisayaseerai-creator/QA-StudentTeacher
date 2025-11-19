@@ -87,9 +87,9 @@ DEFAULT_QUESTIONS = [
 ]
 
 
-def load_questions(date_week: str | None):
+def load_questions(date_week: str | None, *, use_default_if_missing: bool = True):
     if not date_week:
-        return DEFAULT_QUESTIONS.copy()
+        return DEFAULT_QUESTIONS.copy() if use_default_if_missing else []
     con = get_con()
     df = pd.read_sql_query(
         "SELECT question_no, question FROM questions WHERE date_week=? ORDER BY question_no",
@@ -98,9 +98,11 @@ def load_questions(date_week: str | None):
     )
     con.close()
     if df.empty:
-        return DEFAULT_QUESTIONS.copy()
+        return DEFAULT_QUESTIONS.copy() if use_default_if_missing else []
     q = df.sort_values("question_no")["question"].tolist()
-    return q if len(q) > 0 else DEFAULT_QUESTIONS.copy()
+    if len(q) > 0:
+        return q
+    return DEFAULT_QUESTIONS.copy() if use_default_if_missing else []
 
 
 def save_question_set(date_week: str, questions: list[str]):
@@ -288,10 +290,10 @@ st.set_page_config(page_title="Q&A Checker", page_icon="✅", layout="centered")
 # session defaults
 st.session_state.setdefault("started", False)
 st.session_state.setdefault("q_index", 0)
-st.session_state.setdefault("answers", DEFAULT_QUESTIONS.copy())
+st.session_state.setdefault("answers", [""])
 st.session_state.setdefault("show_preview", False)
 st.session_state.setdefault("teacher_loaded", False)
-st.session_state.setdefault("current_questions", DEFAULT_QUESTIONS.copy())
+st.session_state.setdefault("current_questions", [""])
 st.session_state.setdefault("allow_edit_question", True)  # default ON for convenience
 st.session_state.setdefault("group_name", "")
 st.session_state.setdefault("answers_export_df", None)
@@ -334,7 +336,7 @@ with tab_student:
         if not student_id.strip():
             st.warning("Please enter Student ID.")
         else:
-            question_set = load_questions(selected_date)
+            question_set = load_questions(selected_date, use_default_if_missing=False)
             if not question_set:
                 question_set = [""]
             st.session_state.current_questions = question_set
@@ -347,7 +349,7 @@ with tab_student:
 
     if st.session_state.started:
         st.divider()
-        questions = st.session_state.get("current_questions", DEFAULT_QUESTIONS).copy()
+        questions = st.session_state.get("current_questions", [""]).copy()
         total = len(questions)
 
         # Ensure at least 1
@@ -466,7 +468,7 @@ with tab_student:
                     # reset for new submission
                     st.session_state.started = False
                     st.session_state.q_index = 0
-                    st.session_state.answers = [""] * len(DEFAULT_QUESTIONS)
+                    st.session_state.answers = [""]
                     st.session_state.show_preview = False
                     st.session_state.group_name = ""
                     st.session_state.pop("group_name_input", None)
