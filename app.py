@@ -667,6 +667,30 @@ with tab_teacher:
                         st.session_state[score_state_key] = score_map
                         st.rerun()
 
+                export_df = st.session_state.get("answers_export_df")
+                if export_df is not None and not export_df.empty:
+                    export_df = export_df.copy()
+
+                    def _map_class_score(row):
+                        row_date = str(row.get("date_week", "")).strip()
+                        student = row.get("student_id")
+                        if row_date == score_date and student in score_map:
+                            return float(score_map[student])
+                        return float(row.get("Class Score", 0.0) or 0.0)
+
+                    export_df["Class Score"] = export_df.apply(_map_class_score, axis=1)
+                    if "Answer Count" not in export_df.columns:
+                        export_df["Answer Count"] = 0
+                    export_df["Answer Count"] = (
+                        pd.to_numeric(export_df["Answer Count"], errors="coerce")
+                        .fillna(0)
+                        .astype(float)
+                    )
+                    export_df["Total Score"] = (
+                        export_df["Answer Count"] + export_df["Class Score"]
+                    )
+                    st.session_state["answers_export_df"] = export_df
+
                 summary_rows = []
                 for sid in all_ids:
                     answer_score = answer_counts.get(sid, 0)
