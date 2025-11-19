@@ -526,16 +526,9 @@ with tab_teacher:
                 )
             st.session_state["tmp_questions"] = new_questions
 
-            cqs1, cqs2 = st.columns([1, 1])
-            with cqs1:
-                if st.button("💾 Save Question Set", use_container_width=True):
-                    save_question_set(manage_date.strip(), new_questions)
-                    st.success(
-                        f"Saved {len(new_questions)} questions for {manage_date}."
-                    )
-            with cqs2:
-                if st.button("🔄 Reset to Default", use_container_width=True):
-                    st.session_state["tmp_questions"] = DEFAULT_QUESTIONS.copy()
+            if st.button("💾 Save Question Set", use_container_width=True):
+                save_question_set(manage_date.strip(), new_questions)
+                st.success(f"Saved {len(new_questions)} questions for {manage_date}.")
 
         st.divider()
 
