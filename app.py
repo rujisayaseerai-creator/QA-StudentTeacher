@@ -137,17 +137,23 @@ def list_answer_dates():
     return df["date_week"].tolist()
 
 
-def save_answers(student_id, date_week, qa_list, group_name=""):
+def save_answers(student_id, date_week, qa_list, group_names=None):
     con = get_con()
     cur = con.cursor()
     cur.execute(
         "DELETE FROM answers WHERE student_id=? AND date_week=?",
         (student_id, date_week),
     )
-    for qno, qtext, ans in qa_list:
+    for idx, (qno, qtext, ans) in enumerate(qa_list):
+        if isinstance(group_names, list):
+            current_group = (
+                group_names[idx] if idx < len(group_names) else ""
+            )
+        else:
+            current_group = group_names or ""
         cur.execute(
             "INSERT INTO answers (student_id, date_week, question_no, question, answer, group_name, checked) VALUES (?,?,?,?,?,?,0)",
-            (student_id, date_week, qno, qtext, ans, group_name.strip()),
+            (student_id, date_week, qno, qtext, ans, current_group.strip()),
         )
     con.commit()
     con.close()
@@ -283,6 +289,13 @@ def load_student_groups(date_week: str | None) -> dict[str, str]:
     return dict(zip(df["student_id"], df["group_name"]))
 
 
+def clear_group_inputs():
+    """Remove stored Streamlit widget state for per-question group inputs."""
+    for key in list(st.session_state.keys()):
+        if key.startswith("group_name_input_"):
+            st.session_state.pop(key, None)
+
+
 # ---------- App ----------
 init_db()
 st.set_page_config(page_title="Q&A Checker", page_icon="✅", layout="centered")
@@ -295,9 +308,9 @@ st.session_state.setdefault("show_preview", False)
 st.session_state.setdefault("teacher_loaded", False)
 st.session_state.setdefault("current_questions", [""])
 st.session_state.setdefault("allow_edit_question", True)  # default ON for convenience
-st.session_state.setdefault("group_name", "")
 st.session_state.setdefault("answers_export_df", None)
 st.session_state.setdefault("answers_export_label", "all")
+st.session_state.setdefault("group_names", [""])
 
 st.title("📚 Simple Student/Teacher Q&A Checker")
 
@@ -341,11 +354,11 @@ with tab_student:
                 question_set = [""]
             st.session_state.current_questions = question_set
             st.session_state.answers = [""] * len(question_set)
+            st.session_state.group_names = [""] * len(question_set)
             st.session_state.q_index = 0
             st.session_state.started = True
             st.session_state.show_preview = False
-            st.session_state.group_name = ""
-            st.session_state.pop("group_name_input", None)
+            clear_group_inputs()
 
     if st.session_state.started:
         st.divider()
@@ -358,6 +371,7 @@ with tab_student:
             total = 1
             st.session_state.current_questions = questions
             st.session_state.answers = [""]
+            st.session_state.group_names = [""]
 
         q_idx = max(0, min(st.session_state.q_index, total - 1))
         st.session_state.q_index = q_idx
@@ -378,17 +392,23 @@ with tab_student:
         # Answer box
         if len(st.session_state.answers) != total:
             st.session_state.answers = (st.session_state.answers + [""] * total)[:total]
+        if len(st.session_state.group_names) != total:
+            st.session_state.group_names = (
+                st.session_state.group_names + [""] * total
+            )[:total]
         key_a = f"a_{q_idx}"
         st.session_state.answers[q_idx] = st.text_area(
             "Your Answer", value=st.session_state.answers[q_idx], height=140, key=key_a
         )
 
+        group_key = f"group_name_input_{q_idx}"
         group_value = st.text_input(
             "Group Name (optional)",
-            key="group_name_input",
+            value=st.session_state.group_names[q_idx],
+            key=group_key,
             help="Leave blank if not applicable.",
         )
-        st.session_state.group_name = group_value.strip()
+        st.session_state.group_names[q_idx] = group_value.strip()
 
         # Validation for current step
         current_q_filled = questions[q_idx].strip() != ""
@@ -411,6 +431,7 @@ with tab_student:
                 if q_idx >= len(st.session_state.current_questions) - 1:
                     st.session_state.current_questions.append("")
                     st.session_state.answers.append("")
+                    st.session_state.group_names.append("")
                 st.session_state.q_index = min(
                     len(st.session_state.current_questions) - 1, q_idx + 1
                 )
@@ -435,12 +456,15 @@ with tab_student:
             st.subheader("Preview & Submit")
             questions = st.session_state.current_questions
             total = len(questions)
+            group_list = st.session_state.get("group_names", [])
             df_prev = pd.DataFrame(
                 {
                     "Question No.": list(range(1, total + 1)),
                     "Question": questions,
                     "Answer": st.session_state.answers[:total],
-                    "Group": [st.session_state.get("group_name", "")] * total,
+                    "Group": [
+                        group_list[i] if i < len(group_list) else "" for i in range(total)
+                    ],
                 }
             )
             st.dataframe(df_prev, use_container_width=True, hide_index=True)
@@ -462,7 +486,7 @@ with tab_student:
                         student_id.strip(),
                         date_week.strip(),
                         qa,
-                        st.session_state.get("group_name", ""),
+                        st.session_state.get("group_names", []),
                     )
                     st.success("Your answers have been submitted successfully!")
                     # reset for new submission
@@ -470,8 +494,8 @@ with tab_student:
                     st.session_state.q_index = 0
                     st.session_state.answers = [""]
                     st.session_state.show_preview = False
-                    st.session_state.group_name = ""
-                    st.session_state.pop("group_name_input", None)
+                    st.session_state.group_names = [""]
+                    clear_group_inputs()
 # ---------------- Teacher ----------------
 with tab_teacher:
     st.subheader("Manage Questions & Check Answers")
