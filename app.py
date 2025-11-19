@@ -488,47 +488,56 @@ with tab_teacher:
                 "Date / Week (for Question Set)", value=str(date.today())
             )
 
-        with st.expander("📝 Edit Question Set for this Date/Week", expanded=True):
-            existing_dates = list_question_dates()
-            if existing_dates:
-                st.caption("Load from saved sets:")
-                load_select = st.selectbox(
-                    "Saved dates", options=["(select)"] + existing_dates, index=0
-                )
-                if load_select != "(select)":
-                    manage_date = load_select
+        enable_question_edit = st.checkbox(
+            "ตั้ง / แก้ไขชุดคำถามสำหรับวันที่นี้", key="enable_question_edit"
+        )
+
+        if enable_question_edit:
+            with st.expander("📝 Edit Question Set for this Date/Week", expanded=True):
+                existing_dates = list_question_dates()
+                if existing_dates:
+                    st.caption("Load from saved sets:")
+                    load_select = st.selectbox(
+                        "Saved dates", options=["(select)"] + existing_dates, index=0
+                    )
+                    if load_select != "(select)":
+                        manage_date = load_select
+                        st.session_state["tmp_questions"] = load_questions(manage_date)
+
+                if "tmp_questions" not in st.session_state:
                     st.session_state["tmp_questions"] = load_questions(manage_date)
 
-            if "tmp_questions" not in st.session_state:
-                st.session_state["tmp_questions"] = load_questions(manage_date)
-
-            num = st.number_input(
-                "Number of questions",
-                min_value=1,
-                max_value=30,
-                value=len(st.session_state["tmp_questions"]),
-                step=1,
-            )
-            qlist = st.session_state["tmp_questions"]
-            if len(qlist) < num:
-                qlist = qlist + [""] * (num - len(qlist))
-            elif len(qlist) > num:
-                qlist = qlist[:num]
-
-            new_questions = []
-            for i in range(int(num)):
-                new_questions.append(
-                    st.text_input(
-                        f"Q{i + 1}",
-                        value=qlist[i],
-                        placeholder=f"Enter question {i + 1}",
-                    )
+                num = st.number_input(
+                    "Number of questions",
+                    min_value=1,
+                    max_value=30,
+                    value=len(st.session_state["tmp_questions"]),
+                    step=1,
                 )
-            st.session_state["tmp_questions"] = new_questions
+                qlist = st.session_state["tmp_questions"]
+                if len(qlist) < num:
+                    qlist = qlist + [""] * (num - len(qlist))
+                elif len(qlist) > num:
+                    qlist = qlist[:num]
 
-            if st.button("💾 Save Question Set", use_container_width=True):
-                save_question_set(manage_date.strip(), new_questions)
-                st.success(f"Saved {len(new_questions)} questions for {manage_date}.")
+                new_questions = []
+                for i in range(int(num)):
+                    new_questions.append(
+                        st.text_input(
+                            f"Q{i + 1}",
+                            value=qlist[i],
+                            placeholder=f"Enter question {i + 1}",
+                        )
+                    )
+                st.session_state["tmp_questions"] = new_questions
+
+                if st.button("💾 Save Question Set", use_container_width=True):
+                    save_question_set(manage_date.strip(), new_questions)
+                    st.success(
+                        f"Saved {len(new_questions)} questions for {manage_date}."
+                    )
+        else:
+            st.info("เลือกตัวเลือกด้านบนก่อน หากต้องการตั้งหรือแก้ไขชุดคำถามสำหรับวันที่นี้.")
 
         st.divider()
 
